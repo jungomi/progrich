@@ -1,0 +1,48 @@
+[project]
+name = "better-rich-progress"
+version = "0.1.0"
+description = "Better Progress Widget form Rich"
+readme = "README.md"
+authors = [
+    { name = "Michael Jungo", email = "michaeljungo92@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = []
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.basedpyright]
+typeCheckingMode = "standard"
+reportPrivateImportUsage = false
+reportMatchNotExhaustive = true
+reportUnnecessaryComparison = true
+# These need to be ignored separately, even though they are already in gitignore.
+# Otherwise it tries to check all files in the virtual environment (.venv) or any
+# of these generated directories.
+exclude = [
+  "**/__pycache__",
+  ".ruff_cache/",
+  ".cache/",
+  ".venv/",
+]
+# Automatically look in the virtual environment for packages
+venv = ".venv"
+venvPath = "."
+
+
+[tool.pytest.ini_options]
+testpaths = "test"
+
+[tool.ruff.lint]
+# Additionally include import sorting lints (and automatic formatting with --fix)
+extend-select = ["I"]
+
+[dependency-groups]
+dev = [
+    "basedpyright>=1.23.2",
+    "debugpy>=1.8.11",
+    "pytest>=8.3.4",
+    "ruff>=0.9.1",
+]
