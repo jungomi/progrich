@@ -62,7 +62,6 @@ class ProgressBar:
         return self.state == "running"
 
     def __enter__(self) -> Self:
-        self.progress.__enter__()
         self.start()
         return self
 
@@ -72,9 +71,9 @@ class ProgressBar:
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ):
+        self.progress.__exit__(exc_type=exc_type, exc_val=exc_val, exc_tb=exc_tb)
         if not self.is_done():
             self.stop()
-        self.progress.__exit__(exc_type=exc_type, exc_val=exc_val, exc_tb=exc_tb)
 
     def start(self, reset: bool = False):
         if self.is_done():
@@ -83,6 +82,7 @@ class ProgressBar:
             )
         if self.is_running() and not reset:
             return
+        self.progress.__enter__()
         if reset:
             self.progress.reset(self.task_id, start=True, visible=True)
             self.current = 0
@@ -96,6 +96,7 @@ class ProgressBar:
         if not self.persist:
             self.progress.remove_task(self.task_id)
         self.state = "completed" if self.current >= self.total else "aborted"
+        self.progress.__exit__(None, None, None)
 
     def pause(self):
         self.progress.stop_task(self.task_id)
