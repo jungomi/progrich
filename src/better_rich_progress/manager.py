@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from types import TracebackType
-from typing import Self
+from typing import ClassVar, Self
 
 from rich.console import Console, Group
 from rich.live import Live
@@ -11,6 +11,9 @@ from rich.progress import Progress
 class ManagedProgressBar:
     progress: Progress
     done: bool = False
+
+    def has_bars(self) -> bool:
+        return len(self.progress.tasks) > 0
 
 
 class ProgressManager:
@@ -31,7 +34,15 @@ class ProgressManager:
     Epoch 1 - Train   4% ━╸━━━━━━━━━━━━━━━━━━━━━━━━━━━━  36/800 • 0:01:09 • ETA 0:18:08
     """
 
+    _default: ClassVar[Self | None] = None
+    _ctx_count: int = 0
     pbars: dict[int, ManagedProgressBar]
+
+    @classmethod
+    def default(cls) -> Self:
+        if cls._default is None:
+            cls._default = cls()
+        return cls._default
 
     def __init__(
         self,
@@ -43,6 +54,7 @@ class ProgressManager:
         self.pbars = {}
 
     def __enter__(self) -> Self:
+        self._ctx_count += 1
         self.live.__enter__()
         return self
 
@@ -52,20 +64,27 @@ class ProgressManager:
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ):
-        self.live.__exit__(exc_type=exc_type, exc_val=exc_val, exc_tb=exc_tb)
+        if self._ctx_count <= 0:
+            raise RuntimeError("__exit__ was called more often than __enter__")
+        self._ctx_count -= 1
+        if self._ctx_count == 0:
+            self.live.__exit__(exc_type=exc_type, exc_val=exc_val, exc_tb=exc_tb)
 
     def __del__(self):
-        self.__exit__(None, None, None)
+        self.close()
 
     def enable(self) -> Self:
-        self.__enter__()
+        self.live.__enter__()
         self.update()
         return self
 
     def disable(self) -> Self:
         self.live.update(Group(), refresh=True)
-        self.__exit__(None, None, None)
+        self.close()
         return self
+
+    def close(self):
+        self.live.__exit__(None, None, None)
 
     def clear(self):
         self.disable()
@@ -77,13 +96,16 @@ class ProgressManager:
             completed: list[Progress] = []
             running: list[Progress] = []
             for pbar in self.pbars.values():
+                # Ignore progress bars that have no tasks
+                if not pbar.has_bars():
+                    continue
                 if pbar.done:
                     completed.append(pbar.progress)
                 else:
                     running.append(pbar.progress)
             return completed + running
         else:
-            return [pbar.progress for pbar in self.pbars.values()]
+            return [pbar.progress for pbar in self.pbars.values() if pbar.has_bars()]
 
     def add(self, progress: Progress):
         obj_id = id(progress)
