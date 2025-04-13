@@ -1,16 +1,17 @@
 from types import TracebackType
-from typing import Literal, Self
+from typing import Literal, Self, override
 
-from rich.console import Console
+from rich.console import Console, RenderableType
 from rich.progress import Progress, ProgressColumn
 
 from .columns import default_columns
 from .manager import ProgressManager
+from .widget import Widget
 
 type ProgressState = Literal["idle", "running", "completed", "aborted"]
 
 
-class ProgressBar:
+class ProgressBar(Widget):
     """
     A simple wrapper around rich's Progress, but customised and simplified to be
     closer to what tqdm uses as defaults, as that makes much more sense than rich's
@@ -48,8 +49,10 @@ class ProgressBar:
         )
         self.state = "idle"
         self.persist = persist
+        self.active = False
+        self.visible = True
         self.manager = manager or ProgressManager.default()
-        self.manager.add(self.progress)
+        self.manager.add(self)
 
     @staticmethod
     def create_rich_progress(
@@ -59,11 +62,16 @@ class ProgressBar:
             columns = default_columns()
         return Progress(*columns, console=console)
 
+    def is_running(self) -> bool:
+        return self.state == "running"
+
+    @override
     def is_done(self) -> bool:
         return self.state == "completed" or self.state == "aborted"
 
-    def is_running(self) -> bool:
-        return self.state == "running"
+    @override
+    def __rich__(self) -> RenderableType:
+        return self.progress
 
     def __enter__(self) -> Self:
         self.manager.__enter__()
@@ -83,8 +91,7 @@ class ProgressBar:
     def __del__(self):
         if not self.is_done():
             self.stop()
-        # TODO: Handle shared progress across multiple bars.
-        self.manager.remove(self.progress)
+        self.manager.disable(self)
 
     def start(self, reset: bool = False):
         if self.is_done():
@@ -93,6 +100,8 @@ class ProgressBar:
             )
         if self.is_running() and not reset:
             return
+        self.active = True
+        self.manager.enable(widget=self)
         if reset:
             self.progress.reset(self.task_id, start=True, visible=True)
             self.current = 0
@@ -107,9 +116,10 @@ class ProgressBar:
         self.progress.stop_task(self.task_id)
         if not self.persist:
             self.progress.remove_task(self.task_id)
+            self.visible = False
         self.state = "completed" if self.current >= self.total else "aborted"
-        if self.state == "completed":
-            self.manager.complete(self.progress)
+        self.active = False
+        self.manager.disable(widget=self)
 
     def pause(self):
         self.progress.stop_task(self.task_id)

@@ -1,19 +1,30 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from types import TracebackType
 from typing import ClassVar, Self
 
 from rich.console import Console, Group
 from rich.live import Live
-from rich.progress import Progress
+
+from .widget import Widget
 
 
 @dataclass
-class ManagedProgressBar:
-    progress: Progress
-    done: bool = False
+class EnabledTracker:
+    manual: bool = False
+    ctx: int = 0
+    widgets: set[int] = field(default_factory=set)
 
-    def has_bars(self) -> bool:
-        return len(self.progress.tasks) > 0
+    def is_enabled(self) -> bool:
+        return self.manual or self.ctx > 0 or len(self.widgets) > 0
+
+    def add_widget(self, widget: Widget):
+        obj_id = id(widget)
+        self.widgets.add(obj_id)
+
+    def remove_widget(self, widget: Widget):
+        obj_id = id(widget)
+        if obj_id in self.widgets:
+            self.widgets.remove(obj_id)
 
 
 class ProgressManager:
@@ -35,11 +46,20 @@ class ProgressManager:
     """
 
     _default: ClassVar[Self | None] = None
-    _ctx_count: int = 0
-    pbars: dict[int, ManagedProgressBar]
+    _enabled_tracker: EnabledTracker
+    completed_on_top: bool
+    live: Live
+    widgets: dict[int, Widget]
 
     @classmethod
     def default(cls) -> Self:
+        """
+        Get the default ProgressManager.
+
+        This same instance will be used by all progress widgets for which no explicit
+        ProgressManager has been given. Therefore, they will automatically be managed in
+        the same place, which makes the rendering work seamlessly.
+        """
         if cls._default is None:
             cls._default = cls()
         return cls._default
@@ -51,10 +71,11 @@ class ProgressManager:
     ):
         self.completed_on_top = completed_on_top
         self.live = Live(Group(), console=console)
-        self.pbars = {}
+        self.widgets = {}
+        self._enabled_tracker = EnabledTracker()
 
     def __enter__(self) -> Self:
-        self._ctx_count += 1
+        self._enabled_tracker.ctx += 1
         self.live.__enter__()
         return self
 
@@ -64,68 +85,74 @@ class ProgressManager:
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ):
-        if self._ctx_count <= 0:
+        if self._enabled_tracker.ctx <= 0:
             raise RuntimeError("__exit__ was called more often than __enter__")
-        self._ctx_count -= 1
-        if self._ctx_count == 0:
+        self._enabled_tracker.ctx -= 1
+        if self.live.is_started and not self._enabled_tracker.is_enabled():
             self.live.__exit__(exc_type=exc_type, exc_val=exc_val, exc_tb=exc_tb)
 
     def __del__(self):
         self.close()
 
-    def enable(self) -> Self:
+    def enable(self, widget: Widget | None = None) -> Self:
+        if widget:
+            self._enabled_tracker.add_widget(widget)
+        else:
+            self._enabled_tracker.manual = True
         self.live.__enter__()
         self.update()
         return self
 
-    def disable(self) -> Self:
-        self.live.update(Group(), refresh=True)
-        self.close()
+    def disable(self, widget: Widget | None = None) -> Self:
+        if widget:
+            self._enabled_tracker.remove_widget(widget)
+        else:
+            self._enabled_tracker.manual = False
+        if not self._enabled_tracker.is_enabled():
+            self.close()
         return self
 
     def close(self):
-        self.live.__exit__(None, None, None)
+        if self.live.is_started:
+            self.live.__exit__(None, None, None)
 
     def clear(self):
         self.disable()
-        self.pbars = {}
+        self.widgets = {}
         self.update()
 
-    def _get_pbars(self) -> list[Progress]:
+    def _get_widgets(self) -> list[Widget]:
         if self.completed_on_top:
-            completed: list[Progress] = []
-            running: list[Progress] = []
-            for pbar in self.pbars.values():
-                # Ignore progress bars that have no tasks
-                if not pbar.has_bars():
+            completed: list[Widget] = []
+            running: list[Widget] = []
+            for widget in self.widgets.values():
+                if not widget.visible:
                     continue
-                if pbar.done:
-                    completed.append(pbar.progress)
+                if widget.is_done():
+                    completed.append(widget)
                 else:
-                    running.append(pbar.progress)
+                    running.append(widget)
             return completed + running
         else:
-            return [pbar.progress for pbar in self.pbars.values() if pbar.has_bars()]
+            return [widget for widget in self.widgets.values() if widget.visible]
 
-    def add(self, progress: Progress):
-        obj_id = id(progress)
-        self.pbars[obj_id] = ManagedProgressBar(progress, done=False)
+    def add(self, widget: Widget):
+        obj_id = id(widget)
+        self.widgets[obj_id] = widget
         self.update()
 
-    def complete(self, progress: Progress):
-        obj_id = id(progress)
-        pbar = self.pbars.get(obj_id)
-        if pbar is None:
-            raise ValueError("Cannot complete provided progress, as it was not added.")
-        pbar.done = True
-        self.update()
-
-    def remove(self, progress: Progress):
-        obj_id = id(progress)
-        if obj_id not in self.pbars:
-            raise ValueError("Cannot remove provided progress, as it was not added.")
-        del self.pbars[obj_id]
+    def remove(self, widget: Widget):
+        obj_id = id(widget)
+        if obj_id not in self.widgets:
+            raise ValueError("Cannot remove provided widget, as it was not added.")
+        del self.widgets[obj_id]
         self.update()
 
     def update(self):
-        self.live.update(Group(*self._get_pbars()), refresh=True)
+        # Multiple widgets may use the same underlying rich renderable, hence duplicates
+        # need to be removed. This can be achieved by converting the list to a dict and
+        # back to a list. This preserves the order, since dicts are kept in insertion
+        # order in Python.
+        renderables = [widget.__rich__() for widget in self._get_widgets()]
+        renderables = list(dict.fromkeys(renderables))
+        self.live.update(Group(*renderables), refresh=True)
