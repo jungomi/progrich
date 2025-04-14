@@ -1,5 +1,5 @@
 from types import TracebackType
-from typing import Literal, Self, override
+from typing import Self, override
 
 from rich.console import Console, RenderableType
 from rich.progress import Progress, ProgressColumn
@@ -7,8 +7,6 @@ from rich.progress import Progress, ProgressColumn
 from .columns import default_columns
 from .manager import ProgressManager
 from .widget import Widget
-
-type ProgressState = Literal["idle", "running", "completed", "aborted"]
 
 
 class ProgressBar(Widget):
@@ -21,8 +19,6 @@ class ProgressBar(Widget):
 
     Epoch 1 - Train   4% ━╸━━━━━━━━━━━━━━━━━━━━━━━━━━━━  36/800 • 0:01:09 • ETA 0:18:08
     """
-
-    state: ProgressState
 
     def __init__(
         self,
@@ -47,10 +43,7 @@ class ProgressBar(Widget):
             visible=False,
             prefix=prefix,
         )
-        self.state = "idle"
         self.persist = persist
-        self.active = False
-        self.visible = True
         self.manager = manager or ProgressManager.default()
         self.manager.add(self)
 
@@ -61,13 +54,6 @@ class ProgressBar(Widget):
         if columns is None:
             columns = default_columns()
         return Progress(*columns, console=console)
-
-    def is_running(self) -> bool:
-        return self.state == "running"
-
-    @override
-    def is_done(self) -> bool:
-        return self.state == "completed" or self.state == "aborted"
 
     @override
     def __rich__(self) -> RenderableType:
@@ -101,6 +87,7 @@ class ProgressBar(Widget):
         if self.is_running() and not reset:
             return
         self.active = True
+        self.visible = True
         self.manager.enable(widget=self)
         if reset:
             self.progress.reset(self.task_id, start=True, visible=True)
