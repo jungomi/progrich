@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from types import TracebackType
-from typing import ClassVar, Self
+from typing import ClassVar, Self, override
 
 from rich.console import Console, Group
 from rich.live import Live
@@ -156,3 +156,47 @@ class ProgressManager:
         renderables = [widget.__rich__() for widget in self._get_widgets()]
         renderables = list(dict.fromkeys(renderables))
         self.live.update(Group(*renderables), refresh=True)
+
+
+class ManagedWidget(Widget):
+    manager: ProgressManager
+
+    def __init__(self, persist: bool = False, manager: ProgressManager | None = None):
+        self.persist = persist
+        self.manager = manager or ProgressManager.default()
+        self.manager.add(self)
+
+    def __enter__(self) -> Self:
+        self.manager.__enter__()
+        self.start()
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ):
+        if not self.is_done():
+            self.stop()
+        self.manager.__exit__(exc_type=exc_type, exc_val=exc_val, exc_tb=exc_tb)
+
+    def __del__(self):
+        if not self.is_done():
+            self.stop()
+        self.manager.disable(self)
+
+    @override
+    def start(self, reset: bool = False):
+        super().start(reset)
+        self.manager.enable(widget=self)
+
+    @override
+    def stop(self):
+        super().stop()
+        if not self.persist:
+            # This update is done in order to clear the widget from the Live group,
+            # as the stop set it to inactive/invisible, so the rendering needs to be
+            # updated before it can be disabled.
+            self.manager.update()
+        self.manager.disable(widget=self)

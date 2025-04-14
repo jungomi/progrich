@@ -1,15 +1,13 @@
-from types import TracebackType
-from typing import Self, override
+from typing import override
 
 from rich.console import Console, RenderableType
 from rich.progress import Progress, ProgressColumn
 
 from .columns import default_columns
-from .manager import ProgressManager
-from .widget import Widget
+from .manager import ManagedWidget, ProgressManager
 
 
-class ProgressBar(Widget):
+class ProgressBar(ManagedWidget):
     """
     A simple wrapper around rich's Progress, but customised and simplified to be
     closer to what tqdm uses as defaults, as that makes much more sense than rich's
@@ -30,6 +28,7 @@ class ProgressBar(Widget):
         persist: bool = False,
         manager: ProgressManager | None = None,
     ):
+        super().__init__(persist=persist, manager=manager)
         self.desc = desc
         self.total = total
         self.current = current
@@ -43,9 +42,6 @@ class ProgressBar(Widget):
             visible=False,
             prefix=prefix,
         )
-        self.persist = persist
-        self.manager = manager or ProgressManager.default()
-        self.manager.add(self)
 
     @staticmethod
     def create_rich_progress(
@@ -59,58 +55,24 @@ class ProgressBar(Widget):
     def __rich__(self) -> RenderableType:
         return self.progress
 
-    def __enter__(self) -> Self:
-        self.manager.__enter__()
-        self.start()
-        return self
-
-    def __exit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc_val: BaseException | None,
-        exc_tb: TracebackType | None,
-    ):
-        if not self.is_done():
-            self.stop()
-        self.manager.__exit__(exc_type=exc_type, exc_val=exc_val, exc_tb=exc_tb)
-
-    def __del__(self):
-        if not self.is_done():
-            self.stop()
-        self.manager.disable(self)
-
     def start(self, reset: bool = False):
-        if self.is_done():
-            raise RuntimeError(
-                "ProgressBar has already been completed, cannot start it!"
-            )
-        if self.is_running() and not reset:
-            return
-        self.active = True
-        self.visible = True
-        self.manager.enable(widget=self)
+        super().start(reset=reset)
         if reset:
             self.progress.reset(self.task_id, start=True, visible=True)
             self.current = 0
         else:
             self.progress.update(self.task_id, visible=True)
             self.progress.start_task(self.task_id)
-        self.state = "running"
 
     def stop(self):
-        if self.is_done():
-            raise RuntimeError("Cannot stop ProgressBar as it is not running.")
-        self.progress.stop_task(self.task_id)
+        super().stop()
         if not self.persist:
             self.progress.remove_task(self.task_id)
-            self.visible = False
         self.state = "completed" if self.current >= self.total else "aborted"
-        self.active = False
-        self.manager.disable(widget=self)
 
     def pause(self):
+        super().pause()
         self.progress.stop_task(self.task_id)
-        self.state = "idle"
 
     def advance(self, num: float = 1.0):
         if not self.is_running():
