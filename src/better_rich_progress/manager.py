@@ -125,14 +125,17 @@ class ProgressManager:
             self._enabled_tracker.manual = False
         self.update()
         if not self._enabled_tracker.is_enabled():
+            # Once the manager has been fully disabled, it is first closed to preserve
+            # the persisting widgets and then cleared, so that the next time it is
+            # enabled, the old ones will no longer be shown.
             self.close()
+            self.clear()
         return self
 
     def close(self):
         self.live.stop()
 
     def clear(self):
-        self.disable()
         self.widgets = {}
         self._enabled_tracker.manual = None
         self._enabled_tracker.clear_widgets()
@@ -173,14 +176,13 @@ class ProgressManager:
         self.update()
 
     def update(self):
-        if self.live.is_started:
-            # Multiple widgets may use the same underlying rich renderable, hence
-            # duplicates need to be removed. This can be achieved by converting the list
-            # to a dict and back to a list. This preserves the order, since dicts are
-            # kept in insertion order in Python.
-            renderables = [widget.__rich__() for widget in self._get_widgets()]
-            renderables = list(dict.fromkeys(renderables))
-            self.live.update(Group(*renderables))
+        # Multiple widgets may use the same underlying rich renderable, hence
+        # duplicates need to be removed. This can be achieved by converting the list
+        # to a dict and back to a list. This preserves the order, since dicts are
+        # kept in insertion order in Python.
+        renderables = [widget.__rich__() for widget in self._get_widgets()]
+        renderables = list(dict.fromkeys(renderables))
+        self.live.update(Group(*renderables))
 
 
 class ManagedWidget(Widget):
@@ -202,9 +204,9 @@ class ManagedWidget(Widget):
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ):
+        self.manager.__exit__(exc_type=exc_type, exc_val=exc_val, exc_tb=exc_tb)
         if not self.is_done():
             self.stop()
-        self.manager.__exit__(exc_type=exc_type, exc_val=exc_val, exc_tb=exc_tb)
 
     def __del__(self):
         self.manager._enabled_tracker.remove_widget(self)
