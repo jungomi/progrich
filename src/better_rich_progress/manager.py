@@ -10,12 +10,15 @@ from .widget import Widget
 
 @dataclass
 class EnabledTracker:
-    manual: bool = False
+    manual: bool | None = None
     ctx: int = 0
     widgets: set[int] = field(default_factory=set)
 
     def is_enabled(self) -> bool:
-        return self.manual or self.ctx > 0 or len(self.widgets) > 0
+        if self.manual is None:
+            return self.ctx > 0 or len(self.widgets) > 0
+        else:
+            return self.manual
 
     def add_widget(self, widget: Widget):
         obj_id = id(widget)
@@ -25,6 +28,9 @@ class EnabledTracker:
         obj_id = id(widget)
         if obj_id in self.widgets:
             self.widgets.remove(obj_id)
+
+    def clear_widgets(self):
+        self.widgets = set()
 
 
 class ProgressManager:
@@ -92,7 +98,16 @@ class ProgressManager:
             self.live.__exit__(exc_type=exc_type, exc_val=exc_val, exc_tb=exc_tb)
 
     def __del__(self):
-        self.close()
+        self._enabled_tracker.manual = None
+        self._enabled_tracker.clear_widgets()
+        self.update()
+        # Some clean up, because calling __exit__ on the live causes an error as the
+        # console object is no longer available during shutdown of Python.
+        # This just restores the terminal.
+        if self.live.console.is_alt_screen:
+            self.live.console.set_alt_screen(False)
+        self.live.console.clear_live()
+        self.live.console.show_cursor()
 
     def enable(self, widget: Widget | None = None) -> Self:
         if widget:
@@ -108,20 +123,23 @@ class ProgressManager:
             self._enabled_tracker.remove_widget(widget)
         else:
             self._enabled_tracker.manual = False
+        self.update()
         if not self._enabled_tracker.is_enabled():
             self.close()
         return self
 
     def close(self):
-        if self.live.is_started:
-            self.live.__exit__(None, None, None)
+        self.live.stop()
 
     def clear(self):
         self.disable()
         self.widgets = {}
+        self._enabled_tracker.manual = None
+        self._enabled_tracker.clear_widgets()
         self.update()
 
     def _get_widgets(self) -> list[Widget]:
+        visible_widgets = []
         if self.completed_on_top:
             completed: list[Widget] = []
             running: list[Widget] = []
@@ -132,9 +150,15 @@ class ProgressManager:
                     completed.append(widget)
                 else:
                     running.append(widget)
-            return completed + running
+            visible_widgets = completed + running
         else:
-            return [widget for widget in self.widgets.values() if widget.visible]
+            visible_widgets = [
+                widget for widget in self.widgets.values() if widget.visible
+            ]
+        # When the manager is disabled, it should only show the widget that persist.
+        if not self._enabled_tracker.is_enabled():
+            visible_widgets = [widget for widget in visible_widgets if widget.persist]
+        return visible_widgets
 
     def add(self, widget: Widget):
         obj_id = id(widget)
@@ -149,13 +173,14 @@ class ProgressManager:
         self.update()
 
     def update(self):
-        # Multiple widgets may use the same underlying rich renderable, hence duplicates
-        # need to be removed. This can be achieved by converting the list to a dict and
-        # back to a list. This preserves the order, since dicts are kept in insertion
-        # order in Python.
-        renderables = [widget.__rich__() for widget in self._get_widgets()]
-        renderables = list(dict.fromkeys(renderables))
-        self.live.update(Group(*renderables), refresh=True)
+        if self.live.is_started:
+            # Multiple widgets may use the same underlying rich renderable, hence
+            # duplicates need to be removed. This can be achieved by converting the list
+            # to a dict and back to a list. This preserves the order, since dicts are
+            # kept in insertion order in Python.
+            renderables = [widget.__rich__() for widget in self._get_widgets()]
+            renderables = list(dict.fromkeys(renderables))
+            self.live.update(Group(*renderables))
 
 
 class ManagedWidget(Widget):
@@ -182,9 +207,11 @@ class ManagedWidget(Widget):
         self.manager.__exit__(exc_type=exc_type, exc_val=exc_val, exc_tb=exc_tb)
 
     def __del__(self):
+        self.manager._enabled_tracker.remove_widget(self)
         if not self.is_done():
-            self.stop()
-        self.manager.disable(self)
+            super().stop()
+            if not self.persist:
+                self.manager.update()
 
     @override
     def start(self, reset: bool = False):
