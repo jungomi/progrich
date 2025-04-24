@@ -1,6 +1,7 @@
+import time
 from dataclasses import dataclass, field
 from types import TracebackType
-from typing import ClassVar, Self, override
+from typing import ClassVar, Literal, Self, override
 
 from rich.console import Console, Group
 from rich.live import Live
@@ -33,6 +34,25 @@ class EnabledTracker:
         self.widgets = set()
 
 
+@dataclass
+class WidgetInfo:
+    widget: Widget
+    init_time: float = field(default_factory=lambda: time.time())
+    start_time: float | None = None
+    stop_time: float | None = None
+
+    def set_start(self, start_time: float | None = None, overwrite: bool = False):
+        if self.start_time is None or overwrite:
+            self.start_time = start_time or time.time()
+
+    def set_stop(self, stop_time: float | None = None, overwrite: bool = False):
+        if self.stop_time is None or overwrite:
+            self.stop_time = stop_time or time.time()
+
+
+type DisplayOrder = Literal["init", "start-time", "completed-on-top"]
+
+
 class ProgressManager:
     """
     A progress bar manager that handles multiple bars.
@@ -53,9 +73,9 @@ class ProgressManager:
 
     _default: ClassVar[Self | None] = None
     _enabled_tracker: EnabledTracker
-    completed_on_top: bool
+    display_order: DisplayOrder
     live: Live
-    widgets: dict[int, Widget]
+    widgets: dict[int, WidgetInfo]
 
     @classmethod
     def default(cls) -> Self:
@@ -73,9 +93,9 @@ class ProgressManager:
     def __init__(
         self,
         console: Console | None = None,
-        completed_on_top: bool = False,
+        display_order: DisplayOrder = "start-time",
     ):
-        self.completed_on_top = completed_on_top
+        self.display_order = display_order
         self.live = Live(Group(), console=console)
         self.widgets = {}
         self._enabled_tracker = EnabledTracker()
@@ -111,6 +131,10 @@ class ProgressManager:
 
     def enable(self, widget: Widget | None = None) -> Self:
         if widget:
+            obj_id = id(widget)
+            if obj_id not in self.widgets:
+                raise ValueError("Cannot enable provided widget, as it was not added.")
+            self.widgets[obj_id].set_start()
             self._enabled_tracker.add_widget(widget)
         else:
             self._enabled_tracker.manual = True
@@ -120,6 +144,10 @@ class ProgressManager:
 
     def disable(self, widget: Widget | None = None) -> Self:
         if widget:
+            obj_id = id(widget)
+            if obj_id not in self.widgets:
+                raise ValueError("Cannot disable provided widget, as it was not added.")
+            self.widgets[obj_id].set_stop()
             self._enabled_tracker.remove_widget(widget)
         else:
             self._enabled_tracker.manual = False
@@ -141,23 +169,54 @@ class ProgressManager:
         self._enabled_tracker.clear_widgets()
         self.update()
 
-    def _get_widgets(self) -> list[Widget]:
-        visible_widgets = []
-        if self.completed_on_top:
-            completed: list[Widget] = []
-            running: list[Widget] = []
-            for widget in self.widgets.values():
-                if not widget.visible:
-                    continue
-                if widget.is_done():
-                    completed.append(widget)
-                else:
-                    running.append(widget)
-            visible_widgets = completed + running
-        else:
-            visible_widgets = [
-                widget for widget in self.widgets.values() if widget.visible
-            ]
+    def _sort_widgets(
+        self, widgets: list[WidgetInfo], display_order: DisplayOrder | None = None
+    ) -> list[WidgetInfo]:
+        if display_order is None:
+            display_order = self.display_order
+        match display_order:
+            case "init":
+                sorted_widgets = sorted(
+                    widgets, key=lambda widget_info: widget_info.init_time
+                )
+            case "start-time":
+                # Ordered by start time, but falls back to init time for the ones that
+                # have not been started. These should not be displayed usually.
+                sorted_widgets = sorted(
+                    widgets,
+                    key=lambda widget_info: widget_info.start_time
+                    or widget_info.init_time,
+                )
+            case "completed-on-top":
+                # Sorting the stopped widgets separately from the others, and put them
+                # first.
+                stopped_widgets = [
+                    widget_info
+                    for widget_info in widgets
+                    if widget_info.stop_time is not None
+                ]
+                stopped_widgets.sort(key=lambda widget_info: widget_info.stop_time or 0)
+                other_widgets = [
+                    widget_info
+                    for widget_info in widgets
+                    if widget_info.stop_time is None
+                ]
+                other_widgets.sort(
+                    key=lambda widget_info: widget_info.start_time
+                    or widget_info.init_time
+                )
+                sorted_widgets = stopped_widgets + other_widgets
+        return sorted_widgets
+
+    def _get_widgets(self, display_order: DisplayOrder | None = None) -> list[Widget]:
+        ordered_widgets = self._sort_widgets(
+            list(self.widgets.values()), display_order=display_order
+        )
+        visible_widgets = [
+            widget_info.widget
+            for widget_info in ordered_widgets
+            if widget_info.widget.visible
+        ]
         # When the manager is disabled, it should only show the widget that persist.
         if not self._enabled_tracker.is_enabled():
             visible_widgets = [widget for widget in visible_widgets if widget.persist]
@@ -165,7 +224,7 @@ class ProgressManager:
 
     def add(self, widget: Widget):
         obj_id = id(widget)
-        self.widgets[obj_id] = widget
+        self.widgets[obj_id] = WidgetInfo(widget)
         self.update()
 
     def remove(self, widget: Widget):
