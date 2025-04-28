@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from datetime import timedelta
 
-from better_rich_progress.fmt import (
+from progrich.fmt import (
     format_duration_hmms,
     format_duration_human_readable,
     format_large_num_si,

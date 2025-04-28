@@ -1,7 +1,7 @@
 [project]
-name = "better-rich-progress"
+name = "progrich"
 version = "0.1.0"
-description = "Better Progress Widget form Rich"
+description = "Progress widgets from rich made more intuitive to use"
 readme = "README.md"
 authors = [
     { name = "Michael Jungo", email = "michaeljungo92@gmail.com" }

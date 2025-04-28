@@ -1,1 +1,1 @@
-# Better Rich Progress
+# Progrich
