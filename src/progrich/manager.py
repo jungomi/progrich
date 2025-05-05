@@ -129,6 +129,18 @@ class ProgressManager:
         self.live.console.clear_live()
         self.live.console.show_cursor()
 
+    def get_console(self) -> Console:
+        return self.live.console
+
+    def set_console(self, console: Console):
+        # Swapping out the console with an active widget requires the Live to be stopped
+        # temporarily before changing the console, and the resumed.
+        if self._enabled_tracker.is_enabled():
+            self.live.stop()
+        self.live.console = console
+        if self._enabled_tracker.is_enabled():
+            self.live.start()
+
     def enable(self, widget: Widget | None = None) -> Self:
         if widget:
             obj_id = id(widget)

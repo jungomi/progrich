@@ -33,7 +33,9 @@ class ProgressBar(ManagedWidget):
         self.total = total
         self.current = current
         self.prefix = prefix
-        self.progress = progress or self.create_rich_progress()
+        self.progress = progress or self.create_rich_progress(
+            console=self.manager.get_console()
+        )
         self.task_id = self.progress.add_task(
             desc,
             total=total,
