@@ -1,4 +1,4 @@
-from typing import override
+from typing import Self, override
 
 from rich.console import Console, RenderableType
 from rich.progress import Progress, ProgressColumn
@@ -18,13 +18,15 @@ class ProgressBar(ManagedWidget):
     Epoch 1 - Train   4% ━╸━━━━━━━━━━━━━━━━━━━━━━━━━━━━  36/800 • 0:01:09 • ETA 0:18:08
     """
 
+    progress: Progress
+
     def __init__(
         self,
         desc: str,
         total: float,
         current: float = 0,
         prefix: str = "",
-        progress: Progress | None = None,
+        progress: Progress | Self | None = None,
         persist: bool = False,
         manager: ProgressManager | None = None,
     ):
@@ -33,6 +35,10 @@ class ProgressBar(ManagedWidget):
         self.total = total
         self.current = current
         self.prefix = prefix
+        # When the progress is another ProgressBar, this new pbar should be added to the
+        # existing Progress widget from rich, hence reuse it.
+        if isinstance(progress, ProgressBar):
+            progress = progress.progress
         self.progress = progress or self.create_rich_progress(
             console=self.manager.get_console()
         )
