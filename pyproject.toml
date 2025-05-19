@@ -42,9 +42,12 @@ testpaths = "test"
 extend-select = ["I"]
 
 [dependency-groups]
+debug = [
+    "debugpy>=1.8.13",
+    "torch>=2.7.0",
+]
 dev = [
     "basedpyright>=1.23.2",
-    "debugpy>=1.8.11",
     "pytest>=8.3.4",
     "ruff>=0.9.1",
 ]

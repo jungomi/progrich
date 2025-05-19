@@ -1,12 +1,26 @@
 import pdb
 import sys
 
-import torch.distributed as dist
-
 try:
     import debugpy  # pyright: ignore[reportMissingImports]
 except ImportError:
     debugpy = None
+
+
+try:
+    import torch.distributed as dist  # pyright: ignore[reportMissingImports]
+except ImportError:
+    dist = None
+
+
+def is_distributed() -> bool:
+    if dist is None:
+        return False
+    return dist.is_available() and dist.is_initialized()
+
+
+def get_rank() -> int:
+    return 0 if dist is None else dist.get_rank()
 
 
 class MultiprocessingPdb(pdb.Pdb):
@@ -27,10 +41,10 @@ class MultiprocessingPdb(pdb.Pdb):
 
 
 def breakpoint(msg: str | None = None, port: int = 5678):
-    distributed = dist.is_available() and dist.is_initialized()
+    distributed = is_distributed()
     suffix = ""
     if distributed:
-        gpu_id = dist.get_rank()
+        gpu_id = get_rank()
         # Increment port for additional processes
         port += gpu_id
         # Information to which process the debugger connects
