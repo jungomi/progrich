@@ -1,6 +1,5 @@
 import pdb
 import sys
-from typing import Optional
 
 import torch.distributed as dist
 
@@ -27,7 +26,7 @@ class MultiprocessingPdb(pdb.Pdb):
             sys.stdin = _stdin
 
 
-def breakpoint(msg: Optional[str] = None, port: int = 5678):
+def breakpoint(msg: str | None = None, port: int = 5678):
     distributed = dist.is_available() and dist.is_initialized()
     suffix = ""
     if distributed:
