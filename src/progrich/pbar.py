@@ -1,3 +1,4 @@
+from collections.abc import Collection, Generator
 from typing import Self, override
 
 from rich.console import Console, RenderableType
@@ -58,6 +59,28 @@ class ProgressBar(ManagedWidget):
         if columns is None:
             columns = default_columns()
         return Progress(*columns, console=console)
+
+    @classmethod
+    def iter[T](
+        cls,
+        iterable: Collection[T],
+        desc: str = "",
+        prefix: str = "",
+        progress: Progress | Self | None = None,
+        persist: bool = False,
+        manager: ProgressManager | None = None,
+    ) -> Generator[T]:
+        with cls(
+            total=len(iterable),
+            desc=desc,
+            prefix=prefix,
+            progress=progress,
+            persist=persist,
+            manager=manager,
+        ) as pbar:
+            for obj in iterable:
+                yield obj
+                pbar.advance()
 
     @override
     def __rich__(self) -> RenderableType:
