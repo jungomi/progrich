@@ -20,10 +20,7 @@ def default_columns(separator: str = "[dim]•[/dim]") -> list[ProgressColumn]:
         TextColumn("[progress.description]{task.description}"),
         TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
         BarColumn(
-            bar_width=None,
-            style="dim",
-            complete_style="none",
-            finished_style="green"
+            bar_width=None, style="dim", complete_style="none", finished_style="green"
         ),
         CompletionRatioColumn(),
         TextColumn(separator),
