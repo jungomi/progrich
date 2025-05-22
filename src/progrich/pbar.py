@@ -5,7 +5,7 @@ from rich.console import Console, RenderableType
 from rich.progress import Progress, ProgressColumn
 
 from .columns import default_columns
-from .manager import ManagedWidget, ProgressManager
+from .manager import ManagedWidget, Manager
 
 
 class ProgressBar(ManagedWidget):
@@ -29,7 +29,7 @@ class ProgressBar(ManagedWidget):
         prefix: str = "",
         progress: Progress | Self | None = None,
         persist: bool = False,
-        manager: ProgressManager | None = None,
+        manager: Manager | None = None,
     ):
         super().__init__(persist=persist, manager=manager)
         self.desc = desc
@@ -68,7 +68,7 @@ class ProgressBar(ManagedWidget):
         prefix: str = "",
         progress: Progress | Self | None = None,
         persist: bool = False,
-        manager: ProgressManager | None = None,
+        manager: Manager | None = None,
     ) -> Generator[T]:
         with cls(
             total=len(iterable),

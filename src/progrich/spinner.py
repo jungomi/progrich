@@ -3,7 +3,7 @@ from typing import override
 from rich.console import RenderableType
 from rich.spinner import Spinner as RichSpinner
 
-from .manager import ManagedWidget, ProgressManager
+from .manager import ManagedWidget, Manager
 
 
 class Spinner(ManagedWidget):
@@ -23,7 +23,7 @@ class Spinner(ManagedWidget):
         text: str,
         spinner: str = "dots",
         persist: bool = False,
-        manager: ProgressManager | None = None,
+        manager: Manager | None = None,
     ):
         super().__init__(persist=persist, manager=manager)
         self.text = text

@@ -53,9 +53,9 @@ class WidgetInfo:
 type DisplayOrder = Literal["init", "start-time", "completed-on-top"]
 
 
-class ProgressManager:
+class Manager:
     """
-    A progress bar manager that handles multiple bars.
+    A manager that handles multiple widgets.
 
     Rich does not allow to have multiple progress bars at the same time, without having
     to manually create a group that handles the progress bars together, which is kind of
@@ -257,11 +257,11 @@ class ProgressManager:
 
 
 class ManagedWidget(Widget):
-    manager: ProgressManager
+    manager: Manager
 
-    def __init__(self, persist: bool = False, manager: ProgressManager | None = None):
+    def __init__(self, persist: bool = False, manager: Manager | None = None):
         self.persist = persist
-        self.manager = manager or ProgressManager.default()
+        self.manager = manager or Manager.default()
         self.manager.add(self)
 
     def __enter__(self) -> Self:
