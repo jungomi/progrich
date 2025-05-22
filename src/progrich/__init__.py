@@ -1,5 +1,15 @@
 from . import columns, fmt
+from .manager import ManagedWidget, Manager
 from .pbar import ProgressBar
+from .spinner import Spinner
 from .widget import Widget
 
-__all__ = ["fmt", "columns", "ProgressBar", "Widget"]
+__all__ = [
+    "fmt",
+    "columns",
+    "Widget",
+    "Manager",
+    "ManagedWidget",
+    "ProgressBar",
+    "Spinner",
+]
