@@ -69,6 +69,9 @@ class Manager:
 
     [ 1/10]   Total   0% ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━    0/10 • 0:01:09 • ETA -:--:--
     Epoch 1 - Train   4% ━╸━━━━━━━━━━━━━━━━━━━━━━━━━━━━  36/800 • 0:01:09 • ETA 0:18:08
+
+    Important: Only one live widget can be active at any given time, hence you cannot
+    use multiple managers at the same time!
     """
 
     _default: ClassVar[Self | None] = None
@@ -95,6 +98,13 @@ class Manager:
         console: Console | None = None,
         display_order: DisplayOrder = "start-time",
     ):
+        """
+        Args:
+            console (Console, optional): The console to which the widget are rendered.
+                Can be used to disable any output or redirect it to a file.
+            display_order (DisplayOrder): The order to display the widgets.
+                [Default: start-time]
+        """
         self.display_order = display_order
         self.live = Live(Group(), console=console)
         self.widgets = {}
@@ -130,9 +140,21 @@ class Manager:
         self.live.console.show_cursor()
 
     def get_console(self) -> Console:
+        """
+        Get the console the widgets are rendered to.
+
+        Returns:
+            console (Console): The console to which the widget are rendered.
+        """
         return self.live.console
 
     def set_console(self, console: Console):
+        """
+        Sets a new console to which widgets are rendered to.
+
+        Returns:
+            console (Console): The console to which the widget are rendered.
+        """
         # Swapping out the console with an active widget requires the Live to be stopped
         # temporarily before changing the console, and the resumed.
         if self._enabled_tracker.is_enabled():
@@ -142,6 +164,14 @@ class Manager:
             self.live.start()
 
     def enable(self, widget: Widget | None = None) -> Self:
+        """
+        Enable the manager, which show the active/visible widgets.
+
+        It can be either enabled globally or for each managed widget individually.
+
+        Args:
+            widget (Widget, optional): If given, enable that specific widget.
+        """
         if widget:
             obj_id = id(widget)
             if obj_id not in self.widgets:
@@ -155,6 +185,14 @@ class Manager:
         return self
 
     def disable(self, widget: Widget | None = None) -> Self:
+        """
+        Disable the manager, which hides the widgets.
+
+        It can be either disabled globally or for each managed widget individually.
+
+        Args:
+            widget (Widget, optional): If given, disable that specific widget.
+        """
         if widget:
             obj_id = id(widget)
             if obj_id not in self.widgets:
@@ -176,6 +214,9 @@ class Manager:
         self.live.stop()
 
     def clear(self):
+        """
+        Clear and remove all currently managed widgets.
+        """
         self.widgets = {}
         self._enabled_tracker.manual = None
         self._enabled_tracker.clear_widgets()
@@ -235,11 +276,23 @@ class Manager:
         return visible_widgets
 
     def add(self, widget: Widget):
+        """
+        Add a widget to be managed.
+
+        Args:
+            widget (Widget): The widget that should be managed.
+        """
         obj_id = id(widget)
         self.widgets[obj_id] = WidgetInfo(widget)
         self.update()
 
     def remove(self, widget: Widget):
+        """
+        Remove a managed widget.
+
+        Args:
+            widget (Widget): The widget that should be removed from the manager.
+        """
         obj_id = id(widget)
         if obj_id not in self.widgets:
             raise ValueError("Cannot remove provided widget, as it was not added.")
@@ -247,6 +300,11 @@ class Manager:
         self.update()
 
     def update(self):
+        """
+        Update the rendering of all widgets.
+
+        Needs to be called when widgets change.
+        """
         # Multiple widgets may use the same underlying rich renderable, hence
         # duplicates need to be removed. This can be achieved by converting the list
         # to a dict and back to a list. This preserves the order, since dicts are
@@ -257,6 +315,16 @@ class Manager:
 
 
 class ManagedWidget(Widget):
+    """
+    A widget that is managed by a specific Manager.
+
+    This simplifies the usage, so that they are automatically displayed in the Manager without having to do it manually.
+
+    It implements a context manager, which can be used as a `with` statement.
+
+    If you implement a new widget, you should inherit from this.
+    """
+
     manager: Manager
 
     def __init__(self, persist: bool = False, manager: Manager | None = None):
