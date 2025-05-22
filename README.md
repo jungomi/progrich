@@ -1,6 +1,6 @@
 # Progrich
 
-Progress bars, spinners and other widgets from [rich][rich] made more intuitive and with more sensible defaults.
+Progress bars, spinners and other widgets from [rich][rich] made more intuitive, including more sensible defaults.
 
 ## Why not use the built-in progress widgets of rich?
 
