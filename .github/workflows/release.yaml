@@ -5,17 +5,47 @@ on:
     branches:
       - main
 
-permissions:
-  issues: write
-  contents: write
-  pull-requests: write
-
 jobs:
   release-please:
     runs-on: ubuntu-latest
     environment: release
+    permissions:
+      issues: write
+      contents: write
+      pull-requests: write
+
+    outputs:
+      # Make knowing if a release was created accesible to other jobs.
+      release_created: ${{ steps.release.outputs.release_created }}
 
     steps:
       - uses: googleapis/release-please-action@v4
+        id: release
         with:
           release-type: python
+
+  publish-package:
+    needs: [release-please]
+    # Only publish the package when a release has been created.
+    if: needs.release-please.outputs.release_created
+    name: Publish Package
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      # This permission is mandatory for trusted publishing
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Build
+        run: uv build
+
+      - name: Publish
+        run: uv publish
