@@ -1,11 +1,16 @@
 from collections.abc import Collection, Generator
-from typing import Self, override
+from typing import Self, TypedDict, override
 
 from rich.console import Console, RenderableType
 from rich.progress import Progress, ProgressColumn
 
 from .columns import default_columns
 from .manager import ManagedWidget, Manager
+
+
+class UpdateArgs(TypedDict, total=False):
+    description: str
+    prefix: str
 
 
 class ProgressBar(ManagedWidget):
@@ -180,3 +185,22 @@ class ProgressBar(ManagedWidget):
             )
         self.progress.update(self.task_id, advance=num)
         self.current += num
+
+    def update(self, desc: str | None = None, prefix: str | None = None):
+        """
+        Update the details of the progress bar, if provided.
+
+        Args:
+            desc (str, optional): New description to be shown on the progress bar.
+            prefix (str, optional): New prefix to be shown at the beginning of the
+                progress bar.
+        """
+        update_kwargs: UpdateArgs = {}
+        if desc is not None:
+            update_kwargs["description"] = desc
+        if prefix is not None:
+            update_kwargs["prefix"] = prefix
+        # Need to remove Nones because the fields (prefix) will be set to None instead
+        # of keeping the previous values.
+        self.progress.update(self.task_id, **update_kwargs)
+        self.manager.update()
