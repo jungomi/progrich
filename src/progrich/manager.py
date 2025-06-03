@@ -6,6 +6,7 @@ from typing import ClassVar, Literal, Self, override
 from rich.console import Console, Group
 from rich.live import Live
 
+from .signal_handler import SignalHandler
 from .widget import Widget
 
 
@@ -109,6 +110,9 @@ class Manager:
         self.live = Live(Group(), console=console)
         self.widgets = {}
         self._enabled_tracker = EnabledTracker()
+        SignalHandler.default().register(
+            self, lambda _signal_num, _frame: self._cleanup_console()
+        )
 
     def __enter__(self) -> Self:
         self._enabled_tracker.ctx += 1
@@ -131,6 +135,9 @@ class Manager:
         self._enabled_tracker.manual = None
         self._enabled_tracker.clear_widgets()
         self.update()
+        self._cleanup_console()
+
+    def _cleanup_console(self):
         # Some clean up, because calling __exit__ on the live causes an error as the
         # console object is no longer available during shutdown of Python.
         # This just restores the terminal.
