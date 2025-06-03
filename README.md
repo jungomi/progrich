@@ -186,6 +186,19 @@ with Spinner("Waiting for server to start...") as spinner:
 If no message is provided the message from the spinner will be used instead. You can change the icon that is displayed
 by adding the `icon=` argument.
 
+## Table
+
+An interactive table can be displayed where you can keep adding new rows and it will be limited to display the last few
+rows. This makes it easy to show how the values evolve with a bit of context around them but not keeping too much
+information from the past.
+
+```python
+with Table(["Epoch", "Loss", "Accuracy"]) as table:
+    for i in range(5):
+        loss, accuracy = train_epoch(i)
+        table.insert_row([i, loss, accuracy])
+```
+
 ## Manager
 
 In order to combine multiple widgets seamlessly, a `Manager` is used where each of the widgets is added. A default
