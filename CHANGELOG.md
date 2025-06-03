@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.2.0](https://github.com/jungomi/progrich/compare/v0.1.0...v0.2.0) (2025-06-03)
+
+
+### Features
+
+* **table:** add a table that displays the rows dynamically ([e8ed6b7](https://github.com/jungomi/progrich/commit/e8ed6b7fd235c875ab123a083f2d4f23c9782ef0))
+
+
+### Bug Fixes
+
+* **manager:** restore cursor after keyboard interrupts (Ctrl+C) ([d3e1d90](https://github.com/jungomi/progrich/commit/d3e1d906f690baa690c972e586b988e8924a6ad5))
+* **signal_handler:** avoid private type that does not exist in 3.12 ([ca01976](https://github.com/jungomi/progrich/commit/ca01976cf57dcb789bbb6d62f29befe63029c0d6))
+
+
+### Documentation
+
+* show an example of how to use the table ([91d7509](https://github.com/jungomi/progrich/commit/91d75092287cf13633f75f7b915803174415877c))
+
 ## 0.1.0 (2025-05-22)
 
 
