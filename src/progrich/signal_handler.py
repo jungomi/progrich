@@ -7,7 +7,7 @@ type HandlerFn = Callable[[int, FrameType | None], None]
 
 class SignalHandler:
     _default: ClassVar[Self | None] = None
-    original_handler: signal._HANDLER | None = None
+    original_handler: HandlerFn | int | None = None
     handlers: dict[int, HandlerFn]
 
     def __init__(self, signal_num: signal.Signals = signal.SIGINT):
