@@ -1,6 +1,6 @@
 [project]
 name = "progrich"
-version = "0.1.0"
+version = "0.2.0"
 description = "Progress bars, spinners and other widgets from rich made more intuitive, including more sensible defaults."
 readme = "README.md"
 authors = [
